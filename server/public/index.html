@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Document</title>
+  </head>
+  <body style="margin: 0; padding: 0; box-sizing: border-box">
+    <button id="back-cam">Back Cam</button>
+    <button id="front-cam">Front Cam</button>
+    <video src="" id="video" autoplay muted playsinline></video>
+    <script>
+      const channelId = window.location.pathname.replace('/', '');
+      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const url = `${protocol}//${window.location.host}/${channelId}`;
+      const ws = new WebSocket(url);
+      ws.onopen = (e) => {};
+      ws.onmessage = (e) => {
+        const message = JSON.parse(e.data);
+        if (message.type === 'offer') {
+          pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+          pc.createAnswer().then((answer) => {
+            pc.setLocalDescription(answer);
+            ws.send(JSON.stringify({ type: 'answer', sdp: answer }));
+          });
+        }
+        if (message.type === 'candidate') {
+          pc.addIceCandidate(new RTCIceCandidate(message.candidate));
+        }
+        if (message.type === 'answer') {
+          pc.setRemoteDescription(new RTCSessionDescription(message.sdp));
+        }
+      };
+      const pc = new RTCPeerConnection({
+        iceServers: [{ urls: ['stun:stun.l.google.com:19302'] }],
+      });
+      pc.onnegotionneeded = async () => {
+        const offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        ws.send(JSON.stringify({ type: 'offer', sdp: pc.localDescription }));
+      };
+      pc.onicecandidate = async (event) => {
+        const { candidate } = event;
+        if (candidate) {
+          ws.send(JSON.stringify({ type: 'candidate', candidate }));
+        }
+      };
+      pc.ontrack = (event) => {
+        const video = document.getElementById('video');
+        video.srcObject = event.streams[0];
+      };
+      window.onload = () => {
+        navigator.mediaDevices
+          .getUserMedia({ video: { facingMode: 'user' } })
+          .then(async (stream) => {
+            const video = document.getElementById('video');
+            // if browser supports video.srcObject
+            if ('srcObject' in video) {
+              video.srcObject = stream;
+            } else {
+              // old version
+              video.src = window.URL.createObjectURL(stream);
+            }
+            video.play();
+            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+            ws.send(JSON.stringify({ type: 'offer', sdp: offer }));
+          })
+          .catch((e) => {
+            console.log(e);
+          });
+      };
+      const backCam = document.getElementById('back-cam');
+      const frontCam = document.getElementById('front-cam');
+      backCam.addEventListener('click', () => {
+        navigator.mediaDevices
+          .getUserMedia({ video: { facingMode: 'environment' } })
+          .then(async (stream) => {
+            const video = document.getElementById('video');
+
+            // if browser supports video.srcObject
+            if ('srcObject' in video) {
+              video.srcObject = stream;
+            } else {
+              // old version
+              video.src = window.URL.createObjectURL(stream);
+            }
+            video.play();
+            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            ws.send(JSON.stringify({ type: 'offer', sdp: offer }));
+          })
+          .catch((e) => {
+            console.log(e);
+          });
+      });
+      frontCam.addEventListener('click', () => {
+        navigator.mediaDevices
+          .getUserMedia({ video: { facingMode: 'user' } })
+          .then(async (stream) => {
+            const video = document.getElementById('video');
+
+            // if browser supports video.srcObject
+            if ('srcObject' in video) {
+              video.srcObject = stream;
+            } else {
+              // old version
+              video.src = window.URL.createObjectURL(stream);
+            }
+            video.play();
+            stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+            const offer = await pc.createOffer();
+            await pc.setLocalDescription(offer);
+
+            ws.send(JSON.stringify({ type: 'offer', sdp: offer }));
+          })
+          .catch((e) => {
+            console.log(e);
+          });
+      });
+    </script>
+  </body>
+</html>
